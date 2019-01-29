@@ -459,7 +459,7 @@ pxObject::pxObject(pxScene2d* scene): rtObject(), mParent(NULL), mpx(0), mpy(0),
     msx(1), msy(1), mw(0), mh(0),
     mInteractive(true),
     mSnapshotRef(), mPainting(true), mClip(false), mMask(false), mDraw(true), mHitTest(true), mReady(),
-    mFocus(false),mClipSnapshotRef(),mCancelInSet(true),mUseMatrix(false), mRepaint(true)
+    mFocus(false),mClipSnapshotRef(),mCancelInSet(true), mRepaint(true)
     , mIsDirty(true), mRenderMatrix(), mScreenCoordinates(), mDirtyRect()
     ,mDrawableSnapshotForMask(), mMaskSnapshot(), mIsDisposed(false), mSceneSuspended(false)
   {
@@ -1805,6 +1805,67 @@ void pxObject::repaintParents()
   }
 }
 
+rtError pxObject::getMatrixValue(int i, int j, float& v) const
+{
+  pxMatrix4f m;
+  applyMatrix(m);
+  v = m.constData((i-1)*4+(j-1));
+
+  return RT_OK;
+}
+
+rtError pxObject::setMatrixValue(int i, int j, const float& v)
+{
+  mMatrix.data()[(i-1)*4+(j-1)] = v;
+
+  matrix2transform();
+
+  return RT_OK;
+}
+
+void pxObject::matrix2transform()
+{
+  float M11, M12, M21, M22, M41, M42;
+  M11 = mMatrix.constData(0);
+  M12 = mMatrix.constData(1);
+  M21 = mMatrix.constData(4);
+  M22 = mMatrix.constData(5);
+  M41 = mMatrix.constData(12);
+  M42 = mMatrix.constData(13);
+  // M13, M14, M23, M24, M31, M32, M33, M34, M43, M44 are redundant
+
+  float rad2deg = 180.0/3.14159265359;
+  float objSX = sqrt(M11 * M11 + M12 * M12);
+  float objSY = sqrt(M21 * M21 + M22 * M22);
+  float objR = atan2(M21, M22) * rad2deg;
+  if (M21 < 0) objR *= -1; // why???
+  float objX = M41;
+  float objY = M42;
+  rtLogError("M11=%f M22=%f M12=%f M21=%f objSX=%f objSY=%f objR=%f", M11, M22, M12, M21, objSX, objSY, objR);
+
+  cancelAnimation("cx", true);
+  cancelAnimation("cy", true);
+  cancelAnimation("sx", true);
+  cancelAnimation("sy", true);
+  cancelAnimation("r", true);
+  cancelAnimation("rx", true);
+  cancelAnimation("ry", true);
+  cancelAnimation("rz", true);
+  cancelAnimation("x", true);
+  cancelAnimation("y", true);
+
+  setCX(0); // matrix has no rotation center
+  setCY(0); // matrix has no rotation center
+  setSX(objSX);
+  setSY(objSY);
+  setR(objR);
+  setRX(0);
+  setRY(0);
+  setRZ(1);
+  setX(objX);
+  setY(objY);
+}
+
 #if 0
 rtDefineObject(rtPromise, rtObject);
 rtDefineMethod(rtPromise, then);
@@ -1879,7 +1940,6 @@ rtDefineProperty(pxObject,m41);
 rtDefineProperty(pxObject,m42);
 rtDefineProperty(pxObject,m43);
 rtDefineProperty(pxObject,m44);
-rtDefineProperty(pxObject,useMatrix);
 
 
 rtDefineObject(pxRoot,pxObject);
